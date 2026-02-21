@@ -1,8 +1,9 @@
 require("dotenv").config(); // loads environment variables from a .env file.
 
 const express = require("express"); // Express wraps Node’s HTTP module and makes routing easy.
-
 const pool = require("./db/pool");
+const authRoutes = require('./routes/auth');
+const PORT = process.env.PORT || 5000; // if port is specified in env file use it, else use default one as 5000
 
 const app = express(); // creates the main server instance
 
@@ -14,7 +15,7 @@ app.get("/health", (req, res) => {
 });
 
 pool
-  .query("SELECT NOW()")
+  .query("SELECT current_database()")
   .then((res) => {
     console.log("DB connected:", res.rows[0]);
   })
@@ -22,7 +23,7 @@ pool
     console.error("DB connection error:", err);
   });
 
-const PORT = process.env.PORT || 5000; // if port is specified in env file use it, else use default one as 5000
+app.use('/auth',authRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
