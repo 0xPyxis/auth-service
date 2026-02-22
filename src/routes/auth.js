@@ -46,25 +46,25 @@ router.post("/register", async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email||!password) {
+    if (!email || !password) {
       return res.status(400).json({
-        message: 'Email and password required',
+        message: "Email and password required",
       });
     }
 
     // find user
     const userResult = await pool.query(
-      'SELECT * FROM users WHERE email = $1',
-      [ email ]
+      "SELECT * FROM users WHERE email = $1",
+      [email],
     );
 
     if (userResult.rows.length === 0) {
       return res.status(401).json({
-        message: 'Invalid credentials',
+        message: "Invalid credentials",
       });
     }
 
@@ -75,14 +75,14 @@ router.post('/login', async (req, res) => {
 
     if (!isMatch) {
       return res.status(401).json({
-        message: 'Invalid credentials',
+        message: "Invalid credentials",
       });
     }
 
     const accessToken = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '15m' }
+      { expiresIn: "15m" },
     );
 
     // generate refresh token
@@ -96,17 +96,17 @@ router.post('/login', async (req, res) => {
     await pool.query(
       `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
       VALUES ($1, $2, $3)`,
-      [user.id, refreshTokenHash, expiresAt]
+      [user.id, refreshTokenHash, expiresAt],
     );
 
     return res.json({
       accessToken,
       refreshToken,
     });
-  } catch(err) {
+  } catch (err) {
     console.error(err);
     return res.status(500).json({
-      message: 'Internal server error',
+      message: "Internal server error",
     });
   }
 });
