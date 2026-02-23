@@ -23,7 +23,7 @@ pool
     console.error("DB connection error:", err);
   });
 
-app.use('/auth',authRoutes);
+app.use('/auth', authRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

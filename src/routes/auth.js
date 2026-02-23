@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 const authenticateToken = require("../middleware/authMiddleware");
 const authorizeRoles = require("../middleware/roleMiddleware");
-const { loginLimiter } = require('../middleware/rateLimiter');
+const { loginLimiter } = require("../middleware/rateLimiter");
 
 const router = express.Router();
 
@@ -73,14 +73,52 @@ router.post("/login", loginLimiter, async (req, res) => {
 
     const user = userResult.rows[0];
 
+    if (user.lock_until && new Date(user.lock_until) > new Date()) {
+      return res.status(403).json({
+        message: "Account temporarily locked",
+      });
+    }
+
     // compare password
     const isMatch = await bcrypt.compare(password, user.password_hash);
 
     if (!isMatch) {
+      const failedAttempts = user.failed_attempts + 1;
+
+      if (failedAttempts >= 5) {
+        const lockUntil = new Date();
+        lockUntil.setMinutes(lockUntil.getMinutes() + 5);
+
+        await pool.query(
+          `UPDATE users SET failed_attempts = 0,
+          lock_until = $1 
+          WHERE id = $2`,
+          [lockUntil, user.id],
+        );
+
+        return res.status(403).json({
+          message: "Account locked for 5 minutes",
+        });
+      }
+
+      await pool.query(
+        `UPDATE users SET failed_attempts = $1
+        WHERE id = $2`,
+        [failedAttempts, user.id],
+      );
+
       return res.status(401).json({
         message: "Invalid credentials",
       });
     }
+
+    await pool.query(
+      `UPDATE users
+      SET failed_attempts = 0,
+      lock_until = NULL
+      WHERE id = $1`,
+      [user.id] 
+    );
 
     const accessToken = jwt.sign(
       { userId: user.id, role: user.role },
