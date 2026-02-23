@@ -4,6 +4,7 @@ const pool = require("../db/pool");
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 const authenticateToken = require("../middleware/authMiddleware");
+const authorizeRoles = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
@@ -231,32 +232,37 @@ router.post("/refresh", async (req, res) => {
   }
 });
 
-router.post('/logout', async (req, res) => {
+router.post("/logout", async (req, res) => {
   try {
     const { refreshToken } = req.body;
 
-    if(!refreshToken) {
+    if (!refreshToken) {
       return res.status(400).json({
-        message: 'Refresh token required',
+        message: "Refresh token required",
       });
     }
 
-    const [tokenId] = refreshToken.split('.');
+    const [tokenId] = refreshToken.split(".");
 
-    await pool.query(
-      'UPDATE refresh_tokens SET revoked = TRUE WHERE id = $1',
-      [tokenId]
-    );
+    await pool.query("UPDATE refresh_tokens SET revoked = TRUE WHERE id = $1", [
+      tokenId,
+    ]);
 
     res.json({
-      message: 'Logged out successfully',
+      message: "Logged out successfully",
     });
-  } catch(err) {
+  } catch (err) {
     console.error(err);
     res.status(500).json({
-      message: 'Internal server error',
+      message: "Internal server error",
     });
   }
+});
+
+router.get("/admin", authenticateToken, authorizeRoles("admin"), (req, res) => {
+  res.json({
+    message: "Welcome admin",
+  });
 });
 
 module.exports = router;
