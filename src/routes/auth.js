@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require("uuid");
 const authenticateToken = require("../middleware/authMiddleware");
 const authorizeRoles = require("../middleware/roleMiddleware");
 const { loginLimiter } = require("../middleware/rateLimiter");
+const authService = require("../services/authService");
 
 const router = express.Router();
 
@@ -51,106 +52,11 @@ router.post("/register", async (req, res) => {
 
 router.post("/login", loginLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password required",
-      });
-    }
-
-    // find user
-    const userResult = await pool.query(
-      "SELECT * FROM users WHERE email = $1",
-      [email],
-    );
-
-    if (userResult.rows.length === 0) {
-      return res.status(401).json({
-        message: "Invalid credentials",
-      });
-    }
-
-    const user = userResult.rows[0];
-
-    if (user.lock_until && new Date(user.lock_until) > new Date()) {
-      return res.status(403).json({
-        message: "Account temporarily locked",
-      });
-    }
-
-    // compare password
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-
-    if (!isMatch) {
-      const failedAttempts = user.failed_attempts + 1;
-
-      if (failedAttempts >= 5) {
-        const lockUntil = new Date();
-        lockUntil.setMinutes(lockUntil.getMinutes() + 5);
-
-        await pool.query(
-          `UPDATE users SET failed_attempts = 0,
-          lock_until = $1 
-          WHERE id = $2`,
-          [lockUntil, user.id],
-        );
-
-        return res.status(403).json({
-          message: "Account locked for 5 minutes",
-        });
-      }
-
-      await pool.query(
-        `UPDATE users SET failed_attempts = $1
-        WHERE id = $2`,
-        [failedAttempts, user.id],
-      );
-
-      return res.status(401).json({
-        message: "Invalid credentials",
-      });
-    }
-
-    await pool.query(
-      `UPDATE users
-      SET failed_attempts = 0,
-      lock_until = NULL
-      WHERE id = $1`,
-      [user.id] 
-    );
-
-    const accessToken = jwt.sign(
-      { userId: user.id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "15m" },
-    );
-
-    // generate refresh token
-    const tokenId = uuidv4();
-    const tokenSecret = uuidv4();
-
-    const refreshTokenHash = await bcrypt.hash(tokenSecret, 10);
-
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    await pool.query(
-      `INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at)
-      VALUES ($1, $2, $3, $4)`,
-      [tokenId, user.id, refreshTokenHash, expiresAt],
-    );
-
-    const refreshToken = `${tokenId}.${tokenSecret}`;
-
-    return res.json({
-      accessToken,
-      refreshToken,
-    });
+    const result = await authService.login(req.body);
+    res.json(result);
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({
-      message: "Internal server error",
+    res.status(err.status || 500).json({
+      message: err.message,
     });
   }
 });
