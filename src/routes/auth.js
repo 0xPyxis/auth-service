@@ -55,9 +55,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     const result = await authService.login(req.body);
     res.json(result);
   } catch (err) {
-    res.status(err.status || 500).json({
-      message: err.message,
-    });
+    next(err);
   }
 });
 

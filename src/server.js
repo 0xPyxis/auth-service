@@ -4,8 +4,11 @@ const express = require("express"); // Express wraps Node’s HTTP module and ma
 const pool = require("./db/pool");
 const authRoutes = require('./routes/auth');
 const PORT = process.env.PORT || 5000; // if port is specified in env file use it, else use default one as 5000
+const errorHandler = require('./middleware/errorHandler');
+const helmet = require('helmet');
 
 const app = express(); // creates the main server instance
+app.use(helmet());
 
 app.use(express.json()); // This is middleware. It parses incoming JSON bodies and puts them inside: req.body
 
@@ -24,6 +27,11 @@ pool
   });
 
 app.use('/auth', authRoutes);
+
+app.use(errorHandler);
+
+const startTokenCleanup = require('./utils/tokenCleanup');
+startTokenCleanup();
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
